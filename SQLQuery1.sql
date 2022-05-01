@@ -1,6 +1,5 @@
 use Store;
---9 d
---הפרוצדורה מבצעת סיכום יום, מציגה את כל המוצרים שנרכשו היום, את כמותם והמחיר הכולל ששולם עבורם בנוסף מחזירה את סה"כ סכום ההכנות עבור היום
+
 create proc endOfDay @incoming decimal(8,2) output as
 
 select @incoming = SUM(totalCost) from Invoices where CAST(purchaseDate as date) = CAST(getdate() as date)
@@ -16,8 +15,7 @@ end
 
 
 
---9 c
---הפרוצדורה מציגה את 5 המוצרים הנמכרים ביותר בכל הזמנים ומבצעת עליהם הנחות בהתאם למחיר
+--
 create proc topSale as
 
 declare @productid int,
@@ -47,8 +45,8 @@ declare @productid int,
 		CLOSE DiscountCursor
 		DEALLOCATE DiscountCursor
 		select top 10 productid,productName,MAX(totalSoldUnits) as soldUnits , costPerUnit from Product where totalSoldUnits > 0 GROUP BY productId,productName,totalSoldUnits,costPerUnit order by totalSoldUnits DESC
---9 b
---פרוצדורה המקבלת מספר של מוצר וכמות שיש לעדכן במלאי ומבצעת עידכון לכמות הקיימת, במידה והכמות הקיימת חורגת מהמכסה במחסן הפרוצדורה תעביר את כל הכמות של המוצר למחסן אחר
+
+--
 create proc updateProductAmount @pid int , @num int ,@msg nvarchar(300) output as
 declare @oldProductCapacity int,
 @newProductCapacity int,
@@ -93,16 +91,15 @@ END
 ELSE
 	set @msg = 'the new capacity is over then the maximum capacity of this product. insert smallest capacity'
 
---9 a
---פרוצדורה המקבלת שם של קטגוריה ומחזירה את 10 הלקוחות שסכום הרכישה שלהם בחשבונית הוא הגבוהה ביותר תחת אותה הקטגוריה 
+
+--
 create proc top10 @catName nvarchar(40) as
 
 	select TOP 10 cast(purchaseDate as date),customerName , totalCost, categoryName from (
 								select I.purchaseDate, I.customerName, I.totalCost, P.categoryName from Invoices as I inner join Purchases as P on I.invoiceId = P.invoicingId) 
 								derived_table where derived_table.categoryName = @catName
 
---8
---הפרוצדורה מקבלת שם לקוח ומציגה טבלה נתונים עבור טבלת גרף פאי של הקטגוריות לפי כמות הרכישה מכל קטגוריה
+--
 create proc userGraphPie @userName varchar(40) as
 declare @totalPurchases DECIMAL(5,2)
 	
@@ -113,8 +110,7 @@ declare @totalPurchases DECIMAL(5,2)
 								select invoiceId from Invoices as I2 inner join Users as U on  I2.customerId = U.personalId where U.userName = @userName)
 								GROUP BY categoryName order by SUM(amount)
 
---7
---מקבלת תאריך ויוצרת טבלה זמנית של תאריכים מציגה את שם המוצר זמינות במלאי מהתאריך שהוכנס ועד היום
+--
 create proc showProductByDate @date date as
 create table #ProductByDate
 (
@@ -129,8 +125,8 @@ select productName , categoryName , warehouseName, ProductCurrentCapacity from P
 group by productName , categoryName , warehouseName, ProductCurrentCapacity order by ProductCurrentCapacity ASC
 
 
---6--
---הפרוצדורה מקבלת מספר כאחוז ומבצעת הנחה על כל המוצרים שהתקבלו מהפונקציה כאשר תפוסת היא כגודל הפרמטר השני שהתקבל - באחוזים 
+
+--
 create proc makeDiscount @discount tinyint, @capacity int, @numofdays int, @userName nvarchar (40) as
 declare @productid int,
 @newCost decimal(6,2)
@@ -150,8 +146,9 @@ declare @productid int,
 		END
 		CLOSE DiscountCursor
 		DEALLOCATE DiscountCursor
---5--
---הפונקציה מקבלת מספר ימים ושם משתמש ומחזירה את כל המוצרים שהמשתמש רכש בימים אלו
+
+
+--
 create function returnUserProductsByDate(@userName nvarchar (40), @numOfDays int) returns table as
 return
 	(select * from Product as P where P.productId in( 
@@ -161,8 +158,7 @@ return
 
 
 
---4--
---טריגר לעדכון סכום המוצרים בחשבונית והסכום כולל בעת הוספת רכישה חדשה
+--
 create trigger updateInvoice on Purchases after insert as
 declare @costPerUnit decimal(6,2),
 @totalUnits int,
@@ -177,8 +173,8 @@ UPDATE Product SET ProductCurrentCapacity = ProductCurrentCapacity - @totalUnits
 UPDATE Warehouse SET currentCapacity = currentCapacity - @totalUnits where warehouseName = (select warehouseName from Product where productId = @productId);
 
 
---3--
---טריגר להוספת מוצר חדש
+
+--
 create trigger updatesForNewProduct on Product after insert as
 declare @warehouseName nvarchar(40),
 @productCapacity int,
@@ -203,8 +199,8 @@ select @category = categoryName from inserted;
 		end
 
 
---2--
---הוספת רכישה חדשה במידה ולא קיימת חשבונית גם יצירת חשבונית חדשה
+
+--
 create proc addNewPurchase @userName nvarchar(40), @prodName nvarchar(40), @catName nvarchar(40), @totalUnites int,@invoiceId smallint = null, @invoiceIdOut smallint output as
 DECLARE @productId smallint,
 @totalCost decimal(8,2),
@@ -225,19 +221,18 @@ set @totalCost = @totalUnites * @costPerUnit;
 	INSERT INTO Purchases (invoicingId,prudoctid,categoryName,amount,totalCost) VALUES (@invoiceId,@productId,@catName,@totalUnites,@totalCost);
 	set @invoiceIdOut = @invoiceId;
 
---1--
--- הוספת מוצר חדש
+
+--
 create proc addNewProduct @prodName nvarchar(40), @catName nvarchar(40), @costPerUnit decimal(6,2), @max int = 20 , @current int = 0 as
 	INSERT INTO Product(productName,categoryName,warehouseName,entryDate,costPerUnit,ProductMaximunCapacity,ProductCurrentCapacity)
 	VALUES(@prodName,@catName,null,getdate(),@costPerUnit,@max,@current)
-
---הוספת משתמש חדש
+--
 create proc addNewUser @username nvarchar(30), @password nvarchar(30), @fullname nvarchar(30),@id int, @dob date, @phone char(10), @gender char(1), @isAdmin char(1) = 'n' as
 INSERT INTO Users (userName, userPassword, fullName, personalId, dateOfBirth, phone, gender, isAdmin)
 VALUES (@username,@password,@fullname,@id,@dob,@phone,UPPER(@gender), LOWER(@isAdmin));
 
 
---יצירת חשבונית חדשה ריקה והחזרת המספר הסידורי שלה
+--ֳ©ֳ¶ֳ©ֳ¸ֳ÷ ֳ§ֳ¹ֳ¡ֳ¥ֳ°ֳ©ֳ÷ ֳ§ֳ£ֳ¹ֳ₪ ֳ¸ֳ©ֳ·ֳ₪ ֳ¥ֳ₪ֳ§ֳ¦ֳ¸ֳ÷ ֳ₪ֳ®ֳ±ֳ´ֳ¸ ֳ₪ֳ±ֳ©ֳ£ֳ¥ֳ¸ֳ© ֳ¹ֳ¬ֳ₪
 create proc addNewInvoice @id smallint output as
 INSERT INTO Invoices (customerId,customerName,totalPrudocts,totalCost) OUTPUT INSERTED.invoiceId VALUES(null,null,1,1);
 
